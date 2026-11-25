@@ -1,0 +1,11 @@
+# TEMPLATE — runs only once RTL exists.
+read_verilog -sv rtl/core/*.sv rtl/memory/*.sv rtl/bus/*.sv rtl/peripherals/*.sv rtl/top/*.sv
+hierarchy -check -top rv32i_soc_top
+synth -top rv32i_soc_top
+# Technology mapping (Liberty file TBD):
+# dfflibmap -liberty <LIB>
+# abc -liberty <LIB> -constr constraints/abc.constr
+opt_clean
+stat
+tee -o reports/synthesis/yosys_stat.txt stat
+write_verilog -noattr synthesis/out/rv32i_soc_top_netlist.v

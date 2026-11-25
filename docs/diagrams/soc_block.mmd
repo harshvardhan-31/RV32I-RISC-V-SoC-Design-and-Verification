@@ -1,0 +1,26 @@
+flowchart TB
+  subgraph TOP[rv32i_soc_top]
+    subgraph CPU[cpu_core - 5-stage pipeline]
+      IF[IF: pc_unit] --> IFID[if_id_reg] --> ID[ID: decoder / imm_gen / control / regfile] --> IDEX[id_ex_reg] --> EX[EX: alu] --> EXMEM[ex_mem_reg] --> MEM[MEM: load_store_unit] --> MEMWB[mem_wb_reg] --> WB[WB]
+      HZ[hazard_unit] -.-> IF
+      FW[forwarding_unit] -.-> EX
+    end
+    IMEM[instruction_memory]
+    BUS[bus_interconnect + address decoder]
+    DMEM[data_memory]
+    UART[uart_controller]
+    SPI[spi_master]
+    TMR[timer]
+    IRQ[interrupt_controller]
+  end
+  IF <--> IMEM
+  MEM <--> BUS
+  BUS <--> DMEM
+  BUS <--> UART
+  BUS <--> SPI
+  BUS <--> TMR
+  BUS <--> IRQ
+  UART --> IRQ
+  SPI --> IRQ
+  TMR --> IRQ
+  IRQ -. contract TBD .-> CPU

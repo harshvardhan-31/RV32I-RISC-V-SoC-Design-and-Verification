@@ -1,0 +1,16 @@
+flowchart TD
+  A[Reset: PC = reset vector 0x00000000 proposed] --> B[Issue imem request at PC]
+  B --> C{imem ready?}
+  C -- no --> B
+  C -- yes --> D{stall?}
+  D -- yes --> D2[Hold PC and IF/ID] --> B
+  D -- no --> E[Latch PC + instruction in IF/ID]
+  E --> F{redirect from EX?}
+  F -- yes --> G[PC = target, flush IF/ID] --> B
+  F -- no --> H[PC = PC + 4]
+  E --> I[Decode opcode funct3 funct7 rd rs1 rs2]
+  I --> J[Generate immediate I/S/B/U/J]
+  I --> K[Control signals]
+  I --> L[Read rs1, rs2; x0 reads 0]
+  J & K & L --> M[ID/EX register]
+  I --> N{illegal?} -- yes --> O[Behaviour TBD]

@@ -1,0 +1,10 @@
+flowchart LR
+  LSU[load_store_unit<br/>bus master] -- req addr we wdata be --> DEC{address decoder}
+  DEC -- 0x1000_0000 --> DMEM[data_memory]
+  DEC -- 0x2000_0000 --> UART[uart_controller]
+  DEC -- 0x2000_1000 --> SPI[spi_master]
+  DEC -- 0x2000_2000 --> TMR[timer]
+  DEC -- 0x2000_3000 --> IRQ[interrupt_controller]
+  DEC -- unmapped --> ERR[ready + error]
+  DMEM & UART & SPI & TMR & IRQ & ERR --> MUX[response mux] -- rdata ready error --> LSU
+  PC[pc_unit] -- dedicated fetch port --> IMEM[instruction_memory 0x0000_0000]

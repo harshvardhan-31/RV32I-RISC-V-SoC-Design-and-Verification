@@ -1,0 +1,15 @@
+flowchart TD
+  S[Specification - Phase 1] --> RTL[SystemVerilog RTL - Phase 2-4]
+  RTL --> LINT[Lint - Verilator --lint-only]
+  LINT --> SIM[Simulation + self-checking TB - Phase 5]
+  SIM --> COV[Coverage + regression]
+  COV --> SYN[Yosys synthesis - Phase 6]
+  SDC[SDC constraints] --> SYN
+  PDK[PDK + std-cell library TBD] --> SYN
+  SYN --> STA1[Post-synthesis STA - OpenSTA]
+  STA1 --> FP[OpenROAD floorplan]
+  FP --> PL[Placement] --> CTS[Clock tree synthesis] --> RT[Routing]
+  RT --> STA2[Post-route STA]
+  STA2 --> DRC[DRC / LVS - Magic, Netgen, KLayout]
+  DRC --> GDS[GDSII]
+  STA2 -. timing fail .-> SYN
