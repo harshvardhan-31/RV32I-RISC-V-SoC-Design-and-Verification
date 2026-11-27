@@ -8,12 +8,14 @@
 //     FWD-SEQ-A  EX/MEM→EX forwarding on consecutive ALU instructions
 //     FWD-SEQ-B  MEM/WB→EX forwarding (producer two stages back)
 //     FWD-SEQ-C  Branch operand forwarding (BEQ with freshly computed operands)
-//     FWD-SEQ-D  JALR base-register forwarding
+//     FWD-SEQ-D  JALR immediate dependency forwarding:
+//                ADDI x1, x0, 24
+//                JALR x4, x1, 0   (ensures forwarding supplies x1 directly)
 //     FWD-SEQ-E  Store data forwarding (SW uses forwarded rs2)
 //     FWD-SEQ-F  Load-use + MEM/WB forward (LW → stall → ADD uses load result)
+//     FWD-SEQ-G  x0 protection: write to x0 is never forwarded
+//     FWD-SEQ-H  Back-to-back producer priority: newer EX/MEM producer overrides older MEM/WB
 //
-//   Simulation results: Not run — simulator not installed.
-//   Run with: scripts/run_phase3_sim.sh
 // ============================================================================
 
 `timescale 1ns / 1ps
@@ -45,13 +47,12 @@
 // S-type
 `define SW(rs2, rs1, offset) {offset[11:5], 5'(rs2), 5'(rs1), 3'b010, offset[4:0], `OPCODE_STORE}
 
-// B-type: BEQ rs1, rs2, offset  (offset is in bytes, LSB implicit 0)
-// BEQ encoding: imm[12|10:5] rs2 rs1 000 imm[4:1|11] 1100011
+// B-type: BEQ rs1, rs2, offset
 `define BEQ(rs1, rs2, offset) \
     {1'(offset[12]), 6'(offset[10:5]), 5'(rs2), 5'(rs1), 3'b000, \
      4'(offset[4:1]), 1'(offset[11]), `OPCODE_BRANCH}
 
-// JAL rd, offset (21-bit signed, LSB=0)
+// JAL rd, offset
 `define JAL(rd, offset) \
     {1'(offset[20]), 10'(offset[10:1]), 1'(offset[11]), 8'(offset[19:12]), \
      5'(rd), `OPCODE_JAL}
@@ -172,17 +173,16 @@ module tb_cpu_forwarding;
         // FWD-SEQ-C: Branch operand forwarding
         //   ADDI x1, x0, 10    # x1 = 10
         //   ADDI x2, x0, 10    # x2 = 10
-        //   BEQ  x1, x2, +8   # should TAKE branch (x1==x2 forwarded)
+        //   BEQ  x1, x2, +8    # should TAKE branch (x1==x2 forwarded)
         //   ADDI x3, x0, 0xBAD # flushed — should NOT execute
-        //   ADDI x3, x0, 1    # branch target — x3 = 1
+        //   ADDI x3, x0, 1     # branch target — x3 = 1
         // ================================================================
         prog = new[8];
         prog[0] = `ADDI(1, 0, 10);
         prog[1] = `ADDI(2, 0, 10);
-        // BEQ at addr 8 (instr index 2), offset +8 → target addr 16 (index 4)
         prog[2] = `BEQ (1, 2, 21'sd8);
-        prog[3] = `ADDI(3, 0, 12'hBAD);  // Wrong path — should be flushed
-        prog[4] = `ADDI(3, 0, 1);        // Branch target
+        prog[3] = `ADDI(3, 0, 12'hBAD);
+        prog[4] = `ADDI(3, 0, 1);
         prog[5] = `OPCODE_NOP;
         prog[6] = `OPCODE_NOP;
         prog[7] = `OPCODE_NOP;
@@ -198,50 +198,50 @@ module tb_cpu_forwarding;
         $display("PASS FWD-SEQ-C: Branch operand forwarding, correct path taken");
 
         // ================================================================
-        // FWD-SEQ-D: JALR base-register forwarding
-        //   ADDI x1, x0, 24   # x1 = 24 (JALR base = target addr)
-        //   JAL  x2, +8       # jump over next instr; x2 = PC+4
-        //   ADDI x3, x0, 0xBAD # flushed
-        //   JALR x4, x1, 0    # jump to x1=24; x4=PC+4 — forwarded x1 from MEM/WB
-        //   ... (at addr 24):
-        //   ADDI x5, x0, 42   # x5 = 42 (JALR target, proves jump resolved)
+        // FWD-SEQ-D: JALR genuine immediate dependency forwarding
+        //   Address  Instruction
+        //   0        ADDI x1, x0, 24    # x1 = 24
+        //   4        JALR x4, x1, 0     # immediate dependency: x1 forwarded to target calc!
+        //   8        ADDI x3, x0, 0xBAD # flushed wrong path
+        //   12       ADDI x3, x0, 0xBAD # flushed wrong path
+        //   16-20    NOP
+        //   24       ADDI x5, x0, 42    # Target reached! x5 = 42
         // ================================================================
-        // Instruction addresses:
-        //   0: ADDI x1,x0,24
-        //   4: JAL x2, +8  → target=12
-        //   8: ADDI x3,x0,0xBAD (flushed)
-        //  12: JALR x4,x1,0 → target=24
-        //  16-23: NOPs (flushed after JALR)
-        //  24: ADDI x5,x0,42
         prog = new[8];
-        prog[0] = `ADDI(1, 0, 24);
-        prog[1] = `JAL (2, 21'sd8);
-        prog[2] = `ADDI(3, 0, 12'hBAD);
-        prog[3] = `JALR(4, 1, 12'sd0);
-        prog[4] = `OPCODE_NOP;
-        prog[5] = `OPCODE_NOP;
-        prog[6] = `ADDI(5, 0, 42);
-        prog[7] = `OPCODE_NOP;
+        prog[0] = `ADDI(1, 0, 24);        // PC = 0: x1 = 24
+        prog[1] = `JALR(4, 1, 12'sd0);     // PC = 4: jump to x1=24; link x4 = PC+4 = 8
+        prog[2] = `ADDI(3, 0, 12'hBAD);    // PC = 8: should be flushed!
+        prog[3] = `ADDI(3, 0, 12'hBAD);    // PC = 12: should be flushed!
+        prog[4] = `OPCODE_NOP;             // PC = 16
+        prog[5] = `OPCODE_NOP;             // PC = 20
+        prog[6] = `ADDI(5, 0, 42);         // PC = 24: Target instruction
+        prog[7] = `OPCODE_NOP;             // PC = 28
 
         apply_reset(4);
         load_imem(prog);
         apply_reset(2);
         repeat(28) @(posedge clk);
 
+        got = read_reg(1);
+        if (got !== 32'd24)
+            $fatal(1, "FWD-SEQ-D FAIL: x1 exp 24 got %0d", got);
+        got = read_reg(4);
+        if (got !== 32'd8)
+            $fatal(1, "FWD-SEQ-D FAIL: x4 exp 8 (link PC+4) got %0d", got);
         got = read_reg(3);
         if (got !== 32'd0)
-            $fatal(1, "FWD-SEQ-D FAIL: x3 should be 0 (flushed) got 0x%08h", got);
+            $fatal(1, "FWD-SEQ-D FAIL: x3 exp 0 (flushed) got 0x%08h", got);
         got = read_reg(5);
         if (got !== 32'd42)
-            $fatal(1, "FWD-SEQ-D FAIL: x5 exp 42 (JALR target exec) got %0d", got);
-        $display("PASS FWD-SEQ-D: JALR base-register forwarding");
+            $fatal(1, "FWD-SEQ-D FAIL: x5 exp 42 (JALR target executed) got %0d", got);
+        $display("PASS FWD-SEQ-D: Genuine immediate JALR forwarding dependency (ADDI x1 -> JALR x4, x1, 0)");
 
         // ================================================================
         // FWD-SEQ-E: Store data forwarding
-        //   ADDI x1, x0, 14   # x1 = 14
-        //   LUI  x2, 0x1000   # x2 = 0x1000_0000
-        //   SW   x1, 8(x2)    # M[0x1000_0008] = 14; rs2=x1 forwarded from MEM/WB
-        //   LW   x3, 8(x2)    # x3 = 14 (verify store data)
+        //   ADDI x1, x0, 14
+        //   LUI  x2, 0x1000
+        //   SW   x1, 8(x2)    # rs2=x1 forwarded to store data
+        //   LW   x3, 8(x2)
         // ================================================================
         prog = new[7];
         prog[0] = `ADDI(1, 0, 14);
@@ -264,11 +264,11 @@ module tb_cpu_forwarding;
 
         // ================================================================
         // FWD-SEQ-F: Load-use hazard + MEM/WB forwarding of loaded value
-        //   LUI  x1, 0x1000   # x1 = 0x1000_0000
-        //   ADDI x2, x0, 99   # x2 = 99
-        //   SW   x2, 0(x1)    # M[0x1000_0000] = 99
-        //   LW   x3, 0(x1)    # x3 = 99  (load)
-        //   ADD  x4, x3, x2   # x4 = 198 — load-use: stall, then MEM/WB fwd x3
+        //   LUI  x1, 0x1000
+        //   ADDI x2, x0, 99
+        //   SW   x2, 0(x1)
+        //   LW   x3, 0(x1)
+        //   ADD  x4, x3, x2   # load-use stall then forward
         // ================================================================
         prog = new[8];
         prog[0] = `LUI (1, 20'h10000);
@@ -290,10 +290,56 @@ module tb_cpu_forwarding;
             $fatal(1, "FWD-SEQ-F FAIL: x4 exp 198 got %0d", got);
         $display("PASS FWD-SEQ-F: Load-use stall + MEM/WB forwarding");
 
+        // ================================================================
+        // FWD-SEQ-G: x0 protection — write to x0 must NEVER be forwarded
+        //   ADDI x0, x0, 99     # should not update x0, must not be forwarded
+        //   ADD  x6, x0, x0     # x6 must be 0
+        // ================================================================
+        prog = new[5];
+        prog[0] = `ADDI(0, 0, 99);
+        prog[1] = `ADD (6, 0, 0);
+        prog[2] = `OPCODE_NOP;
+        prog[3] = `OPCODE_NOP;
+        prog[4] = `OPCODE_NOP;
+
+        apply_reset(4);
+        load_imem(prog);
+        apply_reset(2);
+        repeat(16) @(posedge clk);
+
+        got = read_reg(6);
+        if (got !== 32'd0)
+            $fatal(1, "FWD-SEQ-G FAIL: x6 exp 0 (x0 protected) got %0d", got);
+        $display("PASS FWD-SEQ-G: Register x0 protection verified (writes ignored, never forwarded)");
+
+        // ================================================================
+        // FWD-SEQ-H: Back-to-back producer priority
+        //   ADDI x7, x0, 10     # older producer
+        //   ADDI x7, x0, 20     # newer producer (EX/MEM)
+        //   ADD  x8, x7, x0     # must forward 20, NOT 10!
+        // ================================================================
+        prog = new[6];
+        prog[0] = `ADDI(7, 0, 10);
+        prog[1] = `ADDI(7, 0, 20);
+        prog[2] = `ADD (8, 7, 0);
+        prog[3] = `OPCODE_NOP;
+        prog[4] = `OPCODE_NOP;
+        prog[5] = `OPCODE_NOP;
+
+        apply_reset(4);
+        load_imem(prog);
+        apply_reset(2);
+        repeat(18) @(posedge clk);
+
+        got = read_reg(8);
+        if (got !== 32'd20)
+            $fatal(1, "FWD-SEQ-H FAIL: x8 exp 20 (newest producer wins) got %0d", got);
+        $display("PASS FWD-SEQ-H: Back-to-back producer priority (EX/MEM wins over MEM/WB)");
+
         $display("");
-        $display("===================================");
-        $display("ALL CPU FORWARDING TESTS PASSED");
-        $display("===================================");
+        $display("=================================================");
+        $display("ALL 8 SYSTEM CPU FORWARDING TESTS PASSED");
+        $display("=================================================");
         $finish;
     end
 

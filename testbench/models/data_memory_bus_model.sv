@@ -1,6 +1,6 @@
 // ============================================================================
 // File: data_memory_bus_model.sv
-// Project: RV32I RISC-V SoC (Phase 2 - Simulation Testbench Model)
+// Project: RV32I RISC-V SoC (Phase 2/Phase 3 - Simulation Testbench Model)
 // Description: Behavioral simulation-only model for Data Memory Bus Slave.
 //              - Conforms to proposed single-outstanding-transaction protocol.
 //              - Byte-addressable storage with byte-enable lane steering.
@@ -31,6 +31,9 @@ module data_memory_bus_model #(
 
     // Byte array storage
     logic [7:0] mem [0:MEM_SIZE_BYTES-1];
+
+    // Configurable wait cycles (defaults to parameter WAIT_CYCLES, can be overridden dynamically)
+    int wait_cycles_cfg = WAIT_CYCLES;
 
     // Initialize data memory to zero
     integer i;
@@ -83,7 +86,7 @@ module data_memory_bus_model #(
                     wait_count <= wait_count + 1;
                 end
 
-                if (wait_count >= WAIT_CYCLES) begin
+                if (wait_count >= wait_cycles_cfg) begin
                     ready_o <= 1'b1;
 
                     // Address validation

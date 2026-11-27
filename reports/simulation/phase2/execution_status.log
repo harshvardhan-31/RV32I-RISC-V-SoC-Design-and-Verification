@@ -1,0 +1,29 @@
+================================================================================
+RV32I SoC Phase 2 Simulation & Lint Execution Status Log
+Date: 2026-11-27
+Environment: Windows 11 (Sandbox / Container)
+================================================================================
+
+[TOOL DETECTION]
+Icarus Verilog (iverilog): NOT FOUND in PATH or system binaries.
+Icarus Verilog VVP (vvp): NOT FOUND in PATH or system binaries.
+Verilator: NOT FOUND in PATH or system binaries.
+
+[STATUS]
+Tests could not be executed within this environment because the EDA toolchain
+(iverilog, vvp, verilator) is not installed.
+All test status entries are marked "Not run".
+No simulated results were fabricated.
+
+[EXECUTION INSTRUCTIONS FOR LOCAL MACHINE]
+Prerequisites:
+  - Install Icarus Verilog >= 11.0: http://bleyer.org/icarus/ or via package manager.
+  - Install Verilator >= 4.200 (optional, for lint checks).
+
+Commands:
+  $ bash scripts/run_phase2_sim.sh
+  $ bash scripts/lint_phase2.sh
+  or
+  $ make test
+  $ make lint
+================================================================================

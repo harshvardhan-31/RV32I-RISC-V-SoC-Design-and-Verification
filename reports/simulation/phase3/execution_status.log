@@ -1,0 +1,55 @@
+================================================================================
+RV32I SoC Phase 3 Simulation & Lint Execution Status Log
+Date: 2026-11-27
+Environment: Windows 11 (Sandbox / Container)
+================================================================================
+
+[TOOL DETECTION]
+Icarus Verilog (iverilog): NOT FOUND in PATH or system binaries.
+Icarus Verilog VVP (vvp): NOT FOUND in PATH or system binaries.
+Verilator: NOT FOUND in PATH or system binaries.
+
+[AUDIT FINDINGS & CORRECTIONS IMPLEMENTED]
+1. ECALL/EBREAK discrimination:
+   - Added funct12_o to instruction_decoder.sv and funct12_i to control_unit.sv.
+   - Wired id_funct12 in cpu_core.sv.
+   - Added self-checking tests for ECALL (32'h00000073), EBREAK (32'h00100073),
+     and invalid SYSTEM encodings.
+2. JALR immediate dependency:
+   - Replaced JALR forwarding test in tb_cpu_forwarding.sv with back-to-back:
+       ADDI x1, x0, 24
+       JALR x4, x1, 0
+   - Updated programs/asm/jump_dependencies.S.
+3. Multi-cycle wait states:
+   - Updated data_memory_bus_model.sv with wait_cycles_cfg.
+   - Added SEQ-E in tb_hazard_integration.sv with WAIT_CYCLES=2.
+4. Branch redirect during outstanding memory transaction:
+   - Corrected pc_unit.sv so stall_i has priority over redirect_i.
+   - Added SEQ-F in tb_hazard_integration.sv verifying older memory load
+     completes and branch redirect resolves without lost instructions.
+5. Cycle-level load-use stall & bubble counter:
+   - Added load_use_stall_count and id_ex_bubble_count in tb_hazard_integration.sv.
+   - Asserted exactly 1 stall cycle and 1 bubble for isolated load-use in SEQ-B.
+6. Extended forwarding tests:
+   - Added FORWARD-13..20 in tb_forwarding_unit.sv covering invalid pipeline entries,
+     x0 protection, reg-write qualification, and back-to-back producer priority.
+   - Added FWD-SEQ-G and FWD-SEQ-H in tb_cpu_forwarding.sv.
+
+[STATUS]
+Tests could not be executed within this environment because the EDA toolchain
+(iverilog, vvp, verilator) is not installed.
+All test status entries are marked "Not run".
+No simulated results were fabricated.
+
+[EXECUTION INSTRUCTIONS FOR LOCAL MACHINE]
+Prerequisites:
+  - Install Icarus Verilog >= 11.0: http://bleyer.org/icarus/ or via package manager.
+  - Install Verilator >= 4.200 (optional, for lint checks).
+
+Commands:
+  $ bash scripts/run_phase3_sim.sh
+  $ bash scripts/lint_phase3.sh
+  or
+  $ make test_phase3
+  $ make lint_phase3
+================================================================================

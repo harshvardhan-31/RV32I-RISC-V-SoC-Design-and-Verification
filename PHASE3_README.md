@@ -1,6 +1,6 @@
 # RV32I RISC-V SoC — Phase 3: Hazard Detection and Forwarding
 
-This package contains the complete, GitHub-ready hardware implementation of **Phase 3: Hazard Detection and Forwarding** for the RV32I RISC-V SoC design.
+This package contains the complete, GitHub-ready hardware implementation of **Phase 3: Hazard Detection and Forwarding** for the RV32I RISC-V SoC design, updated following the comprehensive engineering audit.
 
 ---
 
@@ -18,18 +18,32 @@ This package contains the complete, GitHub-ready hardware implementation of **Ph
   - Priority 2: MEM/WB → EX forwarding (`2'b01`).
   - Blocks EX/MEM forwarding when the instruction is a load (`mem_read = 1`), deferring resolution to load-use stall + MEM/WB forward.
   - Never forwards when destination is `x0` or `reg_write = 0`.
+  - Validates pipeline register valid bits before enabling forwarding.
 - **`cpu_core.sv`** (Updated top-level):
   - Instantiates `hazard_unit` and `forwarding_unit`.
   - Implements 3-way forwarding multiplexers for `fwd_rs1_val` and `fwd_rs2_val`.
   - Forwards `fwd_rs2_val` into `ex_mem_reg` for store data forwarding.
   - Uses forwarded `rs1` for JALR target computation.
+  - Connects `id_funct12` between decoder and control unit for ECALL/EBREAK discrimination.
   - Replaces single `stall_pipeline` with fine-grained per-stage stall/flush control.
+- **`instruction_decoder.sv` & `control_unit.sv`**:
+  - Slices `funct12` (`instr[31:20]`) to accurately distinguish between ECALL (`12'h000`) and EBREAK (`12'h001`).
+- **`pc_unit.sv`**:
+  - Updated so `stall_i` holds PC during bus wait states, executing pending redirects immediately upon stall release.
 
 ### 1.2 Verification Testbenches
-- **`testbench/unit/tb_hazard_unit.sv`**: Self-checking testbench covering 12 hazard detection test cases (HAZARD-01 through HAZARD-12) with `$fatal` checks.
-- **`testbench/unit/tb_forwarding_unit.sv`**: Self-checking testbench covering 12 forwarding test cases (FORWARD-01 through FORWARD-12) with `$fatal` checks.
-- **`testbench/system/tb_hazard_integration.sv`**: System integration testbench verifying execution of RAW chains, load-use stalls, and store data forwarding without software NOPs.
-- **`testbench/system/tb_cpu_forwarding.sv`**: System integration testbench verifying back-to-back ALU, 2-stage back ALU, branch operand forwarding, and JALR base forwarding without software NOPs.
+- **`testbench/unit/tb_hazard_unit.sv`**: Self-checking testbench covering 12 hazard detection test cases (`HAZARD-01..12`) with `$fatal`.
+- **`testbench/unit/tb_forwarding_unit.sv`**: Self-checking testbench covering 20 forwarding test cases (`FORWARD-01..20`) including invalid entries, x0 immunity, reg-write qualification, and back-to-back priority.
+- **`testbench/system/tb_hazard_integration.sv`**: System integration testbench verifying:
+  - RAW dependency chains and store data forwarding with zero NOPs.
+  - Cycle-level counter assertion confirming **exactly 1 stall cycle and 1 bubble insertion** for isolated load-use.
+  - Multi-cycle data memory wait states (`WAIT_CYCLES = 2`).
+  - Branch redirect occurring while an older memory transaction is outstanding.
+- **`testbench/system/tb_cpu_forwarding.sv`**: System integration testbench verifying:
+  - Consecutive ALU and 2-stage back forwarding.
+  - Branch operand forwarding.
+  - **Genuine immediate JALR dependency:** `ADDI x1, x0, 24` followed immediately by `JALR x4, x1, 0`.
+  - Pipeline register x0 protection and back-to-back producer priority.
 
 ### 1.3 Assembly Test Programs without NOPs (`programs/asm/`)
 - `raw_alu_dependencies.S`
@@ -41,15 +55,7 @@ This package contains the complete, GitHub-ready hardware implementation of **Ph
 ### 1.4 Simulation and Linting Scripts (`scripts/`)
 - `scripts/run_phase3_sim.sh`: Shell script to compile and run all Phase 3 unit and integration testbenches via Icarus Verilog.
 - `scripts/lint_phase3.sh`: Shell script to run Verilator lint checks on all modules and the integrated CPU core.
-- Updated `Makefile` with targets: `test_phase3`, `test_hazard_unit`, `test_forwarding_unit`, `test_hazard_integration`, `test_cpu_forwarding`, `lint_phase3`.
-
-### 1.5 Engineering Documentation (`docs/`)
-- `docs/phase3_implementation_decisions.md`: Baseline decisions on forwarding select encoding, load-use bubbles, store forwarding, and priority.
-- `docs/phase3_hazard_architecture.md`: Hazard detection logic equations, timing diagrams, and priority encoding.
-- `docs/phase3_forwarding_architecture.md`: Forwarding datapath diagrams, priority rules, and forwarding mux implementation.
-- `docs/phase3_pipeline_control.md`: Stage-by-stage stall and flush truth tables and scenario breakdowns.
-- `docs/phase3_test_plan.md`: Comprehensive list of all 24 unit tests and 10 system test sequences.
-- `docs/phase3_test_results.md`: Complete test results table (marked "Not run" pending local simulator execution).
+- `Makefile` with targets: `test_phase3`, `test_hazard_unit`, `test_forwarding_unit`, `test_hazard_integration`, `test_cpu_forwarding`, `lint_phase3`.
 
 ---
 

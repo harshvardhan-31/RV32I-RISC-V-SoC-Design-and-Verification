@@ -5,36 +5,39 @@
 #
 #   Tests:
 #   1. JAL control hazard: 2-cycle fetch penalty, wrong-path flush.
-#   2. JALR base-register forwarding: the JALR base register (rs1) is
-#      forwarded from EX/MEM or MEM/WB so a dependent JALR works correctly.
+#   2. JALR immediate dependency:
+#        ADDI x1, x0, 24
+#        JALR x4, x1, 0
+#      Verifies that forwarding supplies x1 directly to the JALR target calculation.
 #
 # Expected register values:
+#   x1 = 24 (immediate dependency value)
 #   x2 = 8  (JAL link value: addr of instr after JAL)
-#   x3 = 0  (must not be set — was in JAL wrong-path slot, should be flushed)
-#   x4 = link to instr after JALR
-#   x5 = 1  (set at JALR target, proves correct jump resolution)
+#   x3 = 0  (must not be set — flushed wrong-path slot)
+#   x4 = 8  (JALR link value: PC+4 of JALR)
+#   x5 = 42 (set at JALR target, proves jump resolved correctly)
 # ============================================================================
 
 .section .text
 .global _start
 _start:
     # Test 1: JAL — unconditional, no data dependency
-    # JAL at addr 0 → target = 8 (skips instr at addr 4)
     jal   x2, skip_one        # x2 = 4 (return addr); jump to skip_one
     addi  x3, x0, 0xBAD      # MUST be flushed (wrong path)
 
 skip_one:
-    # x3 must still be 0 here
+    # Test 2: Genuine immediate JALR dependency
+    # Back-to-back: ADDI produces x1, JALR consumes x1 as base immediately
+    addi  x1, x0, 24          # x1 = 24
+    jalr  x4, x1, 0           # jump to x1=24; link x4 = PC+4 = 8 (forwarded from EX/MEM)
 
-    # Test 2: JALR with computed base address
-    # Compute target address in register, then JALR — tests forwarding
-    addi  x1, x0, jalr_tgt   # x1 = address of jalr_tgt label
-    jalr  x4, x1, 0           # jump to x1 (forwarded from MEM/WB); x4 = PC+4
+    addi  x3, x0, 0xBAD       # MUST be flushed (wrong path)
+    addi  x3, x0, 0xBAD       # MUST be flushed (wrong path)
+    nop
+    nop
 
-    addi  x5, x0, 0xBAD      # flushed — wrong path after JALR
-
-jalr_tgt:
-    addi  x5, x0, 1          # x5 = 1 — proves JALR resolved correctly
+    # Target address 24:
+    addi  x5, x0, 42          # x5 = 42 — proves JALR resolved correctly to target
 
 _halt:
     j     _halt

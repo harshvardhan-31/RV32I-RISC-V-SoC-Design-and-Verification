@@ -1,8 +1,9 @@
 // ============================================================================
 // File: instruction_decoder.sv
-// Project: RV32I RISC-V SoC (Phase 2 - CPU Core)
+// Project: RV32I RISC-V SoC (Phase 2/Phase 3 - CPU Core)
 // Description: Decodes 32-bit RV32I instructions. Extracts opcode, rd, rs1, rs2,
-//              funct3, funct7, identifies instruction classes, and detects illegal encodings.
+//              funct3, funct7, funct12 (instr[31:20]), identifies instruction classes,
+//              and detects illegal encodings.
 // ============================================================================
 
 `timescale 1ns / 1ps
@@ -15,6 +16,7 @@ module instruction_decoder (
     output logic [4:0]  rs1_o,
     output logic [4:0]  rs2_o,
     output logic [6:0]  funct7_o,
+    output logic [11:0] funct12_o,       // instr[31:20] for SYSTEM / I-type instructions
     output logic        rs1_used_o,
     output logic        rs2_used_o,
     output logic        rd_used_o,
@@ -22,25 +24,26 @@ module instruction_decoder (
 );
 
     // Standard RV32I field slicing
-    assign opcode_o = instr_i[6:0];
-    assign rd_o     = instr_i[11:7];
-    assign funct3_o = instr_i[14:12];
-    assign rs1_o    = instr_i[19:15];
-    assign rs2_o    = instr_i[24:20];
-    assign funct7_o = instr_i[31:25];
+    assign opcode_o  = instr_i[6:0];
+    assign rd_o      = instr_i[11:7];
+    assign funct3_o  = instr_i[14:12];
+    assign rs1_o     = instr_i[19:15];
+    assign rs2_o     = instr_i[24:20];
+    assign funct7_o  = instr_i[31:25];
+    assign funct12_o = instr_i[31:20];
 
     // RV32I Major Opcodes
-    localparam [6:0] OPC_LUI    = 7'b0110111;
-    localparam [6:0] OPC_AUIPC  = 7'b0010111;
-    localparam [6:0] OPC_JAL    = 7'b1101111;
-    localparam [6:0] OPC_JALR   = 7'b1100111;
-    localparam [6:0] OPC_BRANCH = 7'b1100011;
-    localparam [6:0] OPC_LOAD   = 7'b0000011;
-    localparam [6:0] OPC_STORE  = 7'b0100011;
-    localparam [6:0] OPC_OP_IMM = 7'b0010011;
-    localparam [6:0] OPC_OP     = 7'b0110011;
+    localparam [6:0] OPC_LUI      = 7'b0110111;
+    localparam [6:0] OPC_AUIPC    = 7'b0010111;
+    localparam [6:0] OPC_JAL      = 7'b1101111;
+    localparam [6:0] OPC_JALR     = 7'b1100111;
+    localparam [6:0] OPC_BRANCH   = 7'b1100011;
+    localparam [6:0] OPC_LOAD     = 7'b0000011;
+    localparam [6:0] OPC_STORE    = 7'b0100011;
+    localparam [6:0] OPC_OP_IMM   = 7'b0010011;
+    localparam [6:0] OPC_OP       = 7'b0110011;
     localparam [6:0] OPC_MISC_MEM = 7'b0001111; // FENCE
-    localparam [6:0] OPC_SYSTEM = 7'b1110011; // ECALL, EBREAK
+    localparam [6:0] OPC_SYSTEM   = 7'b1110011; // ECALL, EBREAK
 
     // Decode register usage and validate opcode/funct combinations
     always_comb begin
@@ -160,14 +163,15 @@ module instruction_decoder (
             end
 
             OPC_MISC_MEM: begin
-                // FENCE: treated as valid NOP in Phase 2
+                // FENCE: treated as valid NOP in Phase 2/3
                 if (funct3_o == 3'b000) illegal_instr_o = 1'b0;
                 else illegal_instr_o = 1'b1;
             end
 
             OPC_SYSTEM: begin
-                // ECALL (imm=12'h000) and EBREAK (imm=12'h001)
-                if (funct3_o == 3'b000 && (instr_i[31:20] == 12'h000 || instr_i[31:20] == 12'h001)) begin
+                // ECALL (imm=12'h000, rs1=0, rd=0) and EBREAK (imm=12'h001, rs1=0, rd=0)
+                if (funct3_o == 3'b000 && rs1_o == 5'b00000 && rd_o == 5'b00000 &&
+                    (funct12_o == 12'h000 || funct12_o == 12'h001)) begin
                     illegal_instr_o = 1'b0;
                 end else begin
                     illegal_instr_o = 1'b1;
