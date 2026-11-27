@@ -1,0 +1,13 @@
+# Ignore temporary build and staging directories
+build/
+sim_out/
+*.vcd
+
+# Zip packages and staging folders
+*.zip
+RV32I_Phase2_Pipelined_Processor/
+RV32I_Phase3_Hazard_Forwarding/
+RV32I_Phase4_Memory_Peripheral_Integration/
+
+# Temporary and local scripts
+scripts/*.ps1

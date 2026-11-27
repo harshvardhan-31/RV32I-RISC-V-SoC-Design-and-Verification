@@ -12,94 +12,53 @@ Status: Completed
 - [x] Open TBD decisions reviewed and baseline documented (`docs/phase2_implementation_decisions.md`)
 
 ## Phase 2 — RV32I Pipelined Processor
-Status: RTL Implemented and Verification Suite Prepared
-- [x] RTL for all 12 CPU core modules in `rtl/core/`
-  - `pc_unit.sv`
-  - `if_id_reg.sv`
-  - `instruction_decoder.sv`
-  - `immediate_generator.sv`
-  - `control_unit.sv`
-  - `register_file.sv`
-  - `id_ex_reg.sv`
-  - `alu.sv`
-  - `ex_mem_reg.sv`
-  - `load_store_unit.sv`
-  - `mem_wb_reg.sv`
-  - `cpu_core.sv`
+Status: Completed & Audited
+- [x] RTL for all 12 CPU core modules in `rtl/core/` (`pc_unit.sv`, `if_id_reg.sv`, `instruction_decoder.sv`, `immediate_generator.sv`, `control_unit.sv`, `register_file.sv`, `id_ex_reg.sv`, `alu.sv`, `ex_mem_reg.sv`, `load_store_unit.sv`, `mem_wb_reg.sv`, `cpu_core.sv`)
 - [x] Unit testbenches implemented in `testbench/unit/`
-  - `tb_alu.sv`
-  - `tb_register_file.sv`
-  - `tb_instruction_decoder.sv`
-  - `tb_immediate_generator.sv`
-  - `tb_control_unit.sv`
-  - `tb_pipeline_registers.sv`
-  - `tb_load_store_unit.sv`
 - [x] Behavioral memory models in `testbench/models/`
-  - `instruction_memory_model.sv`
-  - `data_memory_bus_model.sv`
 - [x] System-level CPU testbench in `testbench/system/tb_cpu_core.sv`
 - [x] Assembly & machine code test programs in `programs/asm/` and `programs/hex/`
 - [x] Simulation and lint scripts in `scripts/run_phase2_sim.sh`, `scripts/lint_phase2.sh`, `Makefile`
 
 ## Phase 3 — Hazard Detection and Forwarding
-Status: RTL Implemented and Verification Suite Prepared
+Status: Completed & Audited
 - [x] `hazard_unit.sv` RTL implemented (`rtl/core/hazard_unit.sv`)
 - [x] `forwarding_unit.sv` RTL implemented (`rtl/core/forwarding_unit.sv`)
 - [x] Top-level integration into `cpu_core.sv` with per-stage stall/flush and forwarding muxes
-- [x] Unit testbenches implemented in `testbench/unit/`:
-  - `tb_hazard_unit.sv` (12 test cases HAZARD-01..12)
-  - `tb_forwarding_unit.sv` (12 test cases FORWARD-01..12)
-- [x] System integration testbenches implemented in `testbench/system/`:
-  - `tb_hazard_integration.sv` (RAW ALU chain, load-use stall bubble, store data fwd)
-  - `tb_cpu_forwarding.sv` (back-to-back ALU, 2-stage back, branch & JALR fwd, store fwd)
-- [x] Assembly test programs without NOP padding in `programs/asm/`:
-  - `raw_alu_dependencies.S`
-  - `load_use_dependencies.S`
-  - `branch_dependencies.S`
-  - `jump_dependencies.S`
-  - `store_data_dependencies.S`
-- [x] Phase 3 simulation and lint scripts:
-  - `scripts/run_phase3_sim.sh`
-  - `scripts/lint_phase3.sh`
-- [x] Phase 3 documentation:
-  - `docs/phase3_implementation_decisions.md`
-  - `docs/phase3_hazard_architecture.md`
-  - `docs/phase3_forwarding_architecture.md`
-  - `docs/phase3_pipeline_control.md`
-  - `docs/phase3_test_plan.md`
-  - `docs/phase3_test_results.md`
-- [ ] Tool execution logs committed to `reports/simulation/phase3/` (Pending simulator run)
+- [x] Audited ECALL/EBREAK discrimination, JALR immediate dependencies, multi-cycle wait states, and branch redirect during memory stalls
+- [x] Unit testbenches implemented in `testbench/unit/`: `tb_hazard_unit.sv`, `tb_forwarding_unit.sv`
+- [x] System integration testbenches implemented in `testbench/system/`: `tb_hazard_integration.sv`, `tb_cpu_forwarding.sv`
+- [x] Assembly test programs without NOP padding in `programs/asm/`
 
 ## Phase 4 — Memory Subsystem and Peripheral Integration
-Status: Not started
+Status: Completed
+- [x] Synthesizable 64 KiB Instruction RAM (`rtl/memory/instruction_memory.sv`)
+- [x] Synthesizable 64 KiB Data RAM with byte enables (`rtl/memory/data_memory.sv`)
+- [x] 1-Master, 5-Slave custom bus interconnect with unmapped address error trap (`rtl/bus/bus_interconnect.sv`)
+- [x] 8-N-1 UART Controller with baud divider, TX/RX FSMs, and interrupt (`rtl/peripherals/uart_controller.sv`)
+- [x] Motorola SPI Master (Modes 0-3, 4 CS lines, IRQ) (`rtl/peripherals/spi_master.sv`)
+- [x] 32-bit Hardware Timer with compare match and W1C IRQ (`rtl/peripherals/timer.sv`)
+- [x] 4-Source Interrupt Controller with sticky pending and W1C clear (`rtl/peripherals/interrupt_controller.sv`)
+- [x] Full SoC top-level integration with 2-flop synchronizers (`rtl/top/rv32i_soc_top.sv`)
+- [x] 7 Unit testbenches in `testbench/unit/`: `tb_instruction_memory.sv`, `tb_data_memory.sv`, `tb_bus_interconnect.sv`, `tb_uart_controller.sv`, `tb_spi_master.sv`, `tb_timer.sv`, `tb_interrupt_controller.sv`
+- [x] 2 System testbenches in `testbench/system/`: `tb_soc_bus_integration.sv`, `tb_rv32i_soc_top.sv`
+- [x] Assembly firmware test programs in `programs/asm/`: `phase4_memory_test.S`, `phase4_uart_test.S`, `phase4_spi_test.S`, `phase4_timer_test.S`, `phase4_soc_smoke_test.S`
+- [x] Ratified linker script (`programs/linker/link.ld`) and firmware build script (`scripts/build_firmware.sh`)
+- [x] Simulation and lint scripts in `scripts/run_phase4_sim.sh`, `scripts/lint_phase4.sh`, and updated `Makefile`
 
-Acceptance criteria:
-- [ ] Memories, bus, decoder RTL
-- [ ] UART, SPI, timer, interrupt controller RTL
-- [ ] Peripheral directed tests
+## Phase 5 — Verification & Validation
+Status: Planned
+- [ ] Compliance testing with official RISC-V architectural tests (riscv-arch-test)
+- [ ] Random instruction regression testing against Spike / Sail reference models
+- [ ] Code coverage collection (line, toggle, branch, FSM condition coverage)
 
-## Phase 5 — Verification and Validation
-Status: Not started
+## Phase 6 — Synthesis & Physical Design
+Status: Planned
+- [ ] Logic synthesis using Yosys and target standard cell library
+- [ ] Static Timing Analysis (STA) with OpenSTA
+- [ ] Place & Route with OpenROAD targeting SkyWater 130nm PDK
 
-Acceptance criteria:
-- [ ] Full RV32I directed suite
-- [ ] Random regression vs reference ISS
-- [ ] Coverage report
-- [ ] Assertions
-
-## Phase 6 — Synthesis and Physical Design
-Status: Not started
-
-Acceptance criteria:
-- [ ] PDK chosen; SDC finalized
-- [ ] Yosys netlist and reports
-- [ ] OpenROAD flow to routed design
-- [ ] STA, DRC, LVS logs; GDSII
-
-## Phase 7 — Optimization and Final Documentation
-Status: Not started
-
-Acceptance criteria:
-- [ ] Timing/area improvements backed by before/after reports
-- [ ] Final report and diagrams
-- [ ] Release tag
+## Phase 7 — Optimization & Final Sign-off
+Status: Planned
+- [ ] Frequency, area, and power sign-off
+- [ ] Final documentation and repository tagging

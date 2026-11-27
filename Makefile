@@ -1,5 +1,5 @@
 # ============================================================================
-# Makefile for RV32I RISC-V SoC (Phase 2 & Phase 3)
+# Makefile for RV32I RISC-V SoC (Phase 2, Phase 3 & Phase 4)
 # ============================================================================
 
 SHELL := /bin/bash
@@ -9,8 +9,10 @@ VERILATOR ?= verilator
 
 BUILD_DIR_P2 := build/phase2
 BUILD_DIR_P3 := build/phase3
+BUILD_DIR_P4 := build/phase4
 REPORT_DIR_P2 := reports/simulation/phase2
 REPORT_DIR_P3 := reports/simulation/phase3
+REPORT_DIR_P4 := reports/simulation/phase4
 
 RTL_CORE_P2 := \
 	rtl/core/pc_unit.sv \
@@ -31,27 +33,49 @@ RTL_CORE_P3 := \
 	rtl/core/forwarding_unit.sv \
 	rtl/core/cpu_core.sv
 
+RTL_P4_MEM := \
+	rtl/memory/instruction_memory.sv \
+	rtl/memory/data_memory.sv
+
+RTL_P4_BUS := \
+	rtl/bus/bus_interconnect.sv
+
+RTL_P4_PERIPH := \
+	rtl/peripherals/uart_controller.sv \
+	rtl/peripherals/spi_master.sv \
+	rtl/peripherals/timer.sv \
+	rtl/peripherals/interrupt_controller.sv
+
+RTL_P4_ALL := \
+	$(RTL_CORE_P3) \
+	$(RTL_P4_MEM) \
+	$(RTL_P4_BUS) \
+	$(RTL_P4_PERIPH) \
+	rtl/top/rv32i_soc_top.sv
+
 TB_MODELS := \
 	testbench/models/instruction_memory_model.sv \
 	testbench/models/data_memory_bus_model.sv
 
-.PHONY: all help test test_unit test_system test_phase3 test_hazard_unit test_forwarding_unit test_hazard_integration test_cpu_forwarding lint lint_phase3 clean dirs
+.PHONY: all help test test_unit test_system test_phase3 test_phase4 \
+        test_hazard_unit test_forwarding_unit test_hazard_integration test_cpu_forwarding \
+        test_imem test_dmem test_bus test_uart test_spi test_timer test_intc \
+        test_soc_bus test_soc_top lint lint_phase3 lint_phase4 firmware clean dirs
 
-all: dirs test test_phase3
+all: dirs test test_phase3 test_phase4
 
 help:
 	@echo "Available targets:"
 	@echo "  make test               - Run all Phase 2 testbenches"
 	@echo "  make test_phase3        - Run all Phase 3 unit & integration testbenches"
-	@echo "  make test_hazard_unit   - Run hazard_unit testbench"
-	@echo "  make test_forwarding_unit - Run forwarding_unit testbench"
-	@echo "  make test_hazard_integration - Run hazard integration system testbench"
-	@echo "  make test_cpu_forwarding - Run CPU forwarding system testbench"
-	@echo "  make lint               - Run Verilator linting on Phase 2 & Phase 3"
+	@echo "  make test_phase4        - Run all Phase 4 unit & system testbenches"
+	@echo "  make test_soc_top       - Run Phase 4 full SoC top testbench"
+	@echo "  make lint_phase4        - Run Verilator linting on Phase 4 RTL"
+	@echo "  make firmware           - Compile assembly programs into hex"
 	@echo "  make clean              - Remove simulation artifacts and build files"
 
 dirs:
-	@mkdir -p $(BUILD_DIR_P2) $(BUILD_DIR_P3) $(REPORT_DIR_P2) $(REPORT_DIR_P3) sim_out
+	@mkdir -p $(BUILD_DIR_P2) $(BUILD_DIR_P3) $(BUILD_DIR_P4) $(REPORT_DIR_P2) $(REPORT_DIR_P3) $(REPORT_DIR_P4) sim_out
 
 # Phase 2 Unit tests
 test_alu: dirs
@@ -111,11 +135,63 @@ test_cpu_forwarding: dirs
 
 test_phase3: test_hazard_unit test_forwarding_unit test_hazard_integration test_cpu_forwarding
 
+# Phase 4 Unit Tests
+test_imem: dirs
+	$(IVERILOG) -g2012 -Wall -o $(BUILD_DIR_P4)/tb_instruction_memory.vvp testbench/unit/tb_instruction_memory.sv rtl/memory/instruction_memory.sv
+	$(VVP) $(BUILD_DIR_P4)/tb_instruction_memory.vvp | tee $(REPORT_DIR_P4)/tb_instruction_memory.log
+
+test_dmem: dirs
+	$(IVERILOG) -g2012 -Wall -o $(BUILD_DIR_P4)/tb_data_memory.vvp testbench/unit/tb_data_memory.sv rtl/memory/data_memory.sv
+	$(VVP) $(BUILD_DIR_P4)/tb_data_memory.vvp | tee $(REPORT_DIR_P4)/tb_data_memory.log
+
+test_bus: dirs
+	$(IVERILOG) -g2012 -Wall -o $(BUILD_DIR_P4)/tb_bus_interconnect.vvp testbench/unit/tb_bus_interconnect.sv rtl/bus/bus_interconnect.sv
+	$(VVP) $(BUILD_DIR_P4)/tb_bus_interconnect.vvp | tee $(REPORT_DIR_P4)/tb_bus_interconnect.log
+
+test_uart: dirs
+	$(IVERILOG) -g2012 -Wall -o $(BUILD_DIR_P4)/tb_uart_controller.vvp testbench/unit/tb_uart_controller.sv rtl/peripherals/uart_controller.sv
+	$(VVP) $(BUILD_DIR_P4)/tb_uart_controller.vvp | tee $(REPORT_DIR_P4)/tb_uart_controller.log
+
+test_spi: dirs
+	$(IVERILOG) -g2012 -Wall -o $(BUILD_DIR_P4)/tb_spi_master.vvp testbench/unit/tb_spi_master.sv rtl/peripherals/spi_master.sv
+	$(VVP) $(BUILD_DIR_P4)/tb_spi_master.vvp | tee $(REPORT_DIR_P4)/tb_spi_master.log
+
+test_timer: dirs
+	$(IVERILOG) -g2012 -Wall -o $(BUILD_DIR_P4)/tb_timer.vvp testbench/unit/tb_timer.sv rtl/peripherals/timer.sv
+	$(VVP) $(BUILD_DIR_P4)/tb_timer.vvp | tee $(REPORT_DIR_P4)/tb_timer.log
+
+test_intc: dirs
+	$(IVERILOG) -g2012 -Wall -o $(BUILD_DIR_P4)/tb_interrupt_controller.vvp testbench/unit/tb_interrupt_controller.sv rtl/peripherals/interrupt_controller.sv
+	$(VVP) $(BUILD_DIR_P4)/tb_interrupt_controller.vvp | tee $(REPORT_DIR_P4)/tb_interrupt_controller.log
+
+test_unit_phase4: test_imem test_dmem test_bus test_uart test_spi test_timer test_intc
+
+# Phase 4 System Tests
+test_soc_bus: dirs
+	$(IVERILOG) -g2012 -Wall -I rtl/memory -I rtl/bus -I rtl/peripherals \
+		-o $(BUILD_DIR_P4)/tb_soc_bus_integration.vvp \
+		testbench/system/tb_soc_bus_integration.sv $(RTL_P4_MEM) $(RTL_P4_BUS) $(RTL_P4_PERIPH)
+	$(VVP) $(BUILD_DIR_P4)/tb_soc_bus_integration.vvp | tee $(REPORT_DIR_P4)/tb_soc_bus_integration.log
+
+test_soc_top: dirs
+	$(IVERILOG) -g2012 -Wall -I rtl/core -I rtl/memory -I rtl/bus -I rtl/peripherals -I rtl/top \
+		-o $(BUILD_DIR_P4)/tb_rv32i_soc_top.vvp \
+		testbench/system/tb_rv32i_soc_top.sv $(RTL_P4_ALL)
+	$(VVP) $(BUILD_DIR_P4)/tb_rv32i_soc_top.vvp | tee $(REPORT_DIR_P4)/tb_rv32i_soc_top.log
+
+test_phase4: test_unit_phase4 test_soc_bus test_soc_top
+
 lint:
 	@bash scripts/lint_phase2.sh
 
 lint_phase3:
 	@bash scripts/lint_phase3.sh
+
+lint_phase4:
+	@bash scripts/lint_phase4.sh
+
+firmware:
+	@bash scripts/build_firmware.sh
 
 clean:
 	rm -rf build/ sim_out/
