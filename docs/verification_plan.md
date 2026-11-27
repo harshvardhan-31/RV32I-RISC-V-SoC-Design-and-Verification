@@ -4,7 +4,7 @@
 
 ## Strategy
 - Self-checking SystemVerilog testbenches per module (`testbench/unit/`).
-- System testbench loads RV32I programs from `programs/` into instruction memory.
+- System testbenches load RV32I programs from `programs/` into instruction memory.
 - Golden reference: hand-computed tables for units; a reference ISS (Spike, TBD) for programs.
 - Assertions (SVA) for x0, valid/flush and bus handshake stability.
 - Coverage: opcode coverage, hazard-type coverage, address-region coverage (tool support TBD).
@@ -29,7 +29,7 @@
 | REGISTER_FILE-02 | Write then read every register | Reads match last written value; x0 always 0 | Not run |
 | REGISTER_FILE-03 | Write to x0 ignored; x0 reads 0 | Reads match last written value; x0 always 0 | Not run |
 | REGISTER_FILE-04 | Two simultaneous reads of different and same registers | Reads match last written value; x0 always 0 | Not run |
-| REGISTER_FILE-05 | Same-cycle write and read of same register (behaviour per decision) | Reads match last written value; x0 always 0 | Not run |
+| REGISTER_FILE-05 | Same-cycle write and read of same register | Reads match last written value; x0 always 0 | Not run |
 | REGISTER_FILE-06 | we=0 does not change contents | Reads match last written value; x0 always 0 | Not run |
 
 ## Instruction decoder — `instruction_decoder`
@@ -52,52 +52,62 @@
 
 | ID | Scenario | Expected result | Status |
 |---|---|---|---|
-| CONTROL_UNIT-01 | Every instruction produces expected control vector | Control vector equals golden table in this document (to be added) | Not run |
-| CONTROL_UNIT-02 | Illegal instruction asserts no write side effects | Control vector equals golden table in this document (to be added) | Not run |
+| CONTROL_UNIT-01 | Every instruction produces expected control vector | Control vector equals golden table in this document | Not run |
+| CONTROL_UNIT-02 | Illegal instruction asserts no write side effects | Control vector equals golden table in this document | Not run |
 
 ## Pipeline registers — `if_id_reg / id_ex_reg / ex_mem_reg / mem_wb_reg`
 
 | ID | Scenario | Expected result | Status |
 |---|---|---|---|
-| IF_ID_REG-01 | Reset clears valid | Contents per priority table; flushed entries never write | Not run |
-| IF_ID_REG-02 | Advance captures inputs | Contents per priority table; flushed entries never write | Not run |
-| IF_ID_REG-03 | Stall holds contents | Contents per priority table; flushed entries never write | Not run |
-| IF_ID_REG-04 | Flush clears valid and side-effect controls | Contents per priority table; flushed entries never write | Not run |
-| IF_ID_REG-05 | Stall and flush same cycle follows priority | Contents per priority table; flushed entries never write | Not run |
+| PIPE_REG-01 | Normal advancement | Values latch on posedge clk when valid=1 | Not run |
+| PIPE_REG-02 | Stall assertion | Values held without change | Not run |
+| PIPE_REG-03 | Flush assertion | Valid bit cleared, outputs zeroed | Not run |
 
-## Hazard detection unit — `hazard_unit`
+## Hazard Detection Unit — `hazard_unit` (Phase 3)
 
 | ID | Scenario | Expected result | Status |
 |---|---|---|---|
-| HAZARD_UNIT-01 | Load followed by dependent ALU on rs1, rs2, both | Exactly one bubble for load-use; correct flush signals | Not run |
-| HAZARD_UNIT-02 | Load followed by independent instruction: no stall | Exactly one bubble for load-use; correct flush signals | Not run |
-| HAZARD_UNIT-03 | Load to x0: no stall | Exactly one bubble for load-use; correct flush signals | Not run |
-| HAZARD_UNIT-04 | Source not used (e.g. LUI): no stall | Exactly one bubble for load-use; correct flush signals | Not run |
-| HAZARD_UNIT-05 | Taken branch/jump flush | Exactly one bubble for load-use; correct flush signals | Not run |
-| HAZARD_UNIT-06 | Bus wait hold | Exactly one bubble for load-use; correct flush signals | Not run |
+| HAZARD-01 | Load-use hazard: rd matches rs1 | stall_if=1, stall_id=1, bubble_id_ex=1, flush_if_id=0 | Not run |
+| HAZARD-02 | Load-use hazard: rd matches rs2 | stall_if=1, stall_id=1, bubble_id_ex=1, flush_if_id=0 | Not run |
+| HAZARD-03 | Load-use with rd=x0 | No stall; all outputs 0 | Not run |
+| HAZARD-04 | LUI false dependency (rs1 not used) | No stall; all outputs 0 | Not run |
+| HAZARD-05 | rs2 not used by ID instruction | No stall; all outputs 0 | Not run |
+| HAZARD-06 | ID/EX not valid | No stall; all outputs 0 | Not run |
+| HAZARD-07 | ID/EX instruction is not a load | No stall; all outputs 0 | Not run |
+| HAZARD-08 | Control hazard redirect in EX | stall_if=0, stall_id=0, bubble_id_ex=1, flush_if_id=1 | Not run |
+| HAZARD-09 | No redirect in EX | All outputs 0 | Not run |
+| HAZARD-10 | LSU busy: bus wait state | stall_if=1, stall_id=1, bubble_id_ex=0, flush_if_id=0 | Not run |
+| HAZARD-11 | LSU busy + load-use pending | LSU busy priority; stalls hold, no bubble | Not run |
+| HAZARD-12 | LSU busy + redirect pending | LSU busy priority; stalls hold, no flush | Not run |
 
-## Forwarding unit — `forwarding_unit`
-
-| ID | Scenario | Expected result | Status |
-|---|---|---|---|
-| FORWARDING_UNIT-01 | EX/MEM match | Select signals match priority rules | Not run |
-| FORWARDING_UNIT-02 | MEM/WB match | Select signals match priority rules | Not run |
-| FORWARDING_UNIT-03 | Both match: EX/MEM wins | Select signals match priority rules | Not run |
-| FORWARDING_UNIT-04 | rd = x0: no forward | Select signals match priority rules | Not run |
-| FORWARDING_UNIT-05 | reg_write = 0: no forward | Select signals match priority rules | Not run |
-| FORWARDING_UNIT-06 | Store data forwarding | Select signals match priority rules | Not run |
-
-## Complete processor — `rv32i_soc_top`
+## Forwarding Unit — `forwarding_unit` (Phase 3)
 
 | ID | Scenario | Expected result | Status |
 |---|---|---|---|
-| RV32I_SOC_TOP-01 | One directed program per instruction class | Register file and memory signatures match the reference; retirement trace equal | Not run |
-| RV32I_SOC_TOP-02 | Back-to-back dependent instructions | Register file and memory signatures match the reference; retirement trace equal | Not run |
-| RV32I_SOC_TOP-03 | Load-use sequences | Register file and memory signatures match the reference; retirement trace equal | Not run |
-| RV32I_SOC_TOP-04 | Taken / not-taken branches, JAL, JALR | Register file and memory signatures match the reference; retirement trace equal | Not run |
-| RV32I_SOC_TOP-05 | Byte/half/word loads and stores at all offsets | Register file and memory signatures match the reference; retirement trace equal | Not run |
-| RV32I_SOC_TOP-06 | Peripheral register read/write and IRQ | Register file and memory signatures match the reference; retirement trace equal | Not run |
-| RV32I_SOC_TOP-07 | Random RV32I programs compared with Spike or a reference ISS (tool TBD) | Register file and memory signatures match the reference; retirement trace equal | Not run |
+| FORWARD-01 | EX/MEM matches rs1 | fwd_sel_a = 2'b10 (EX/MEM forward) | Not run |
+| FORWARD-02 | MEM/WB matches rs1 (EX/MEM no match) | fwd_sel_a = 2'b01 (MEM/WB forward) | Not run |
+| FORWARD-03 | Both stages match rs1 | fwd_sel_a = 2'b10 (EX/MEM priority) | Not run |
+| FORWARD-04 | EX/MEM rd = x0 | fwd_sel_a = 2'b00 (no forward for x0) | Not run |
+| FORWARD-05 | EX/MEM reg_write = 0 | fwd_sel_a = 2'b00 (no forward) | Not run |
+| FORWARD-06 | EX/MEM mem_read = 1 (load not ready) | fwd_sel_a = 2'b00 (EX/MEM load forward blocked) | Not run |
+| FORWARD-07 | EX/MEM matches rs2 | fwd_sel_b = 2'b10 (EX/MEM forward) | Not run |
+| FORWARD-08 | MEM/WB matches rs2 | fwd_sel_b = 2'b01 (MEM/WB forward) | Not run |
+| FORWARD-09 | Both stages match rs2 | fwd_sel_b = 2'b10 (EX/MEM priority) | Not run |
+| FORWARD-10 | MEM/WB rd = x0 | fwd_sel_b = 2'b00 (no forward) | Not run |
+| FORWARD-11 | No match for rs1 or rs2 | fwd_sel_a = 2'b00, fwd_sel_b = 2'b00 | Not run |
+| FORWARD-12 | EX/MEM load + MEM/WB match | fwd_sel_a = 2'b01 (MEM/WB forward applied) | Not run |
 
-## Exit criteria (Phase 5)
-All directed tests pass, random regression with documented seeds passes, coverage targets (TBD) met, no open critical bugs.
+## System Integration Tests (Phase 3)
+
+| ID | Program / Testbench | Scenario | Expected result | Status |
+|---|---|---|---|---|
+| SYS-HAZ-01 | `tb_hazard_integration` SEQ-A | RAW ALU chain (ADD->SUB->AND) | Register file: x3=8, x4=3, x5=0 | Not run |
+| SYS-HAZ-02 | `tb_hazard_integration` SEQ-B | Load-use hazard (LW then ADD) | 1-cycle stall bubble, x3=42, x4=84 | Not run |
+| SYS-HAZ-03 | `tb_hazard_integration` SEQ-C | Store data forwarding (ADD then SW) | M[0x1000_0004]=14, x4=14 | Not run |
+| SYS-HAZ-04 | `tb_hazard_integration` SEQ-D | Triple-dependency chain | x2=2, x3=3, x4=5 | Not run |
+| SYS-FWD-01 | `tb_cpu_forwarding` SEQ-A | Back-to-back ALU instructions | x2=20, x3=30 | Not run |
+| SYS-FWD-02 | `tb_cpu_forwarding` SEQ-B | 2-stage back producer (MEM/WB) | x3=10 | Not run |
+| SYS-FWD-03 | `tb_cpu_forwarding` SEQ-C | Branch operand forwarding (BEQ) | Branch taken, x3=1, bad path flushed | Not run |
+| SYS-FWD-04 | `tb_cpu_forwarding` SEQ-D | JALR base-register forwarding | JALR targets correctly, x5=42 | Not run |
+| SYS-FWD-05 | `tb_cpu_forwarding` SEQ-E | Store data forwarding | Memory stores correctly, x3=14 | Not run |
+| SYS-FWD-06 | `tb_cpu_forwarding` SEQ-F | Load-use + MEM/WB forwarding | Stall bubble + forward, x4=198 | Not run |
