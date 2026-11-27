@@ -2,7 +2,7 @@
 
 ---
 
-## 1. Files Newly Added
+## 1. Files Newly Added in Phase 2 Baseline
 
 ### Synthesizable RTL Modules (`rtl/core/`)
 - `rtl/core/pc_unit.sv` — Program Counter generation, increment, redirect handling, and stall priority.
@@ -40,62 +40,17 @@
 - `programs/asm/phase2_branch.s` — Assembly branch redirect, JAL, and pipeline flush test.
 - `programs/hex/phase2_branch.hex` — Verified machine code for branch test.
 
-### Scripts & Automation (`scripts/`, repository root)
-- `scripts/run_phase2_sim.sh` — Bash simulation runner using Icarus Verilog (`-g2012`).
-- `scripts/lint_phase2.sh` — Verilator lint runner.
-- `scripts/run_phase2_sim.ps1` — Windows PowerShell simulation runner.
-- `Makefile` — Make orchestration for unit, system, and lint targets.
-
-### Documentation & Reports (`docs/`, `reports/`)
-- `docs/phase2_implementation_decisions.md` — Documented baseline decisions for Phase 2.
-- `docs/phase2_rtl_architecture.md` — Datapath, pipeline registers, and interface specification.
-- `docs/phase2_test_results.md` — Verification plan and test execution status.
-- `reports/simulation/phase2/README.md` — Guidelines for committing simulation logs.
-- `reports/simulation/phase2/REPORT_TEMPLATE.md` — Standard report template.
-- `PHASE2_README.md` — Deliverable package summary.
-- `PHASE2_CHANGELOG.md` — This file.
-
 ---
 
-## 2. Existing Files Updated
-- `docs/module_specification.md` — Updated module inventory: CPU modules 2..13 moved from "Proposed" to "Implemented (Phase 2)".
-- `docs/development_roadmap.md` — Updated Phase 2 status with checklist of completed items.
-- `README.md` — Updated project status to Phase 2 implemented, updated layout, and added simulation execution commands.
-- `rtl/core/README.md` — Documented all 12 implemented CPU modules.
-- `testbench/README.md` — Documented unit, system, and behavioral model directories.
+## 2. Engineering Audit & Corrections Applied
 
----
-
-## 3. Verification Execution Status
-
-- **Tests Written:** 8 testbenches (7 unit + 1 system).
-- **Tests Actually Executed in Current Environment:** None (`Not run`).
-- **Reason:** Icarus Verilog (`iverilog` / `vvp`) is not installed on the current execution runner's host environment.
-- **Integrity Guarantee:** In accordance with the project's verification policies, tests are marked "Not run" rather than falsely reporting passed results. Full instructions and scripts are provided for running under Linux, macOS, and Windows once Icarus Verilog is installed.
-
----
-
-## 4. Known Limitations
-
-1. **Hazard Handling:** No hardware forwarding unit or hazard detection unit is present in Phase 2. Assembly code must contain 3 NOPs between dependent instructions.
-2. **Unaligned Memory Access:** Misaligned loads/stores do not trigger exceptions; lower address bits are used for byte-lane enables and word/halfword alignment.
-3. **Privileged Operations & Traps:** ECALL and EBREAK are decoded as non-side-effecting system instructions; no CSRs or trap vectors are implemented in Phase 2.
-4. **Instruction Fetch Latency:** Fetch architecture assumes a 1-cycle synchronous response from instruction memory.
-
----
-
-## 5. Remaining Phase 3 and Phase 4 Tasks
-
-### Phase 3: Hazard Detection and Forwarding
-- Implement `rtl/core/forwarding_unit.sv` (EX/MEM and MEM/WB to EX stage forwarding).
-- Implement `rtl/core/hazard_unit.sv` (Dynamic load-use stall detection and single-bubble insertion).
-- Verify pipeline hazard resolution without software NOP insertion.
-
-### Phase 4: Memory Subsystem and Peripheral Integration
-- Implement synthesizable `rtl/memory/instruction_memory.sv` and `rtl/memory/data_memory.sv`.
-- Implement `rtl/bus/bus_interconnect.sv` with address decoding and error response for unmapped regions.
-- Implement `rtl/peripherals/uart_controller.sv`.
-- Implement `rtl/peripherals/spi_master.sv`.
-- Implement `rtl/peripherals/timer.sv`.
-- Implement `rtl/peripherals/interrupt_controller.sv`.
-- Implement `rtl/top/rv32i_soc_top.sv`.
+During the Phase 2/Phase 3 engineering audit, the following fixes were implemented:
+1. **ECALL / EBREAK Distinction:**
+   - Modified `instruction_decoder.sv` to output `funct12_o` (`instr_i[31:20]`).
+   - Sliced `funct12_i` into `control_unit.sv` to distinguish ECALL (`12'h000`) and EBREAK (`12'h001`), resolving an issue where `funct7_i[0]` (bit 25) was previously checked instead of bit 20.
+   - Added self-checking tests for ECALL, EBREAK, and illegal SYSTEM instructions in `tb_instruction_decoder.sv` and `tb_control_unit.sv`.
+2. **PC Unit Stall Priority Over Redirection:**
+   - Modified `pc_unit.sv` so that `stall_i` takes precedence over `redirect_i`.
+   - Prevents wrong-path instruction fetch or dropped targets during memory wait states (`lsu_busy`). Redirection executes synchronously once the memory stall clears.
+3. **Data Memory Model Wait Cycles Configuration:**
+   - Updated `data_memory_bus_model.sv` with dynamic `wait_cycles_cfg` variable to allow runtime wait-state configuration without re-instantiation.

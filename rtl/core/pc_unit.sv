@@ -1,9 +1,11 @@
 // ============================================================================
 // File: pc_unit.sv
-// Project: RV32I RISC-V SoC (Phase 2 - CPU Core)
+// Project: RV32I RISC-V SoC (Phase 2/Phase 3 - CPU Core)
 // Description: Program Counter unit for Instruction Fetch (IF) stage.
 //              Handles reset vector, sequential PC increment (+4), branch/jump
 //              redirection, and pipeline stall hold.
+//              Priority: stall_i holds PC to preserve state during bus wait states;
+//              redirect_i takes effect as soon as pipeline stall clears.
 // ============================================================================
 
 `timescale 1ns / 1ps
@@ -29,12 +31,13 @@ module pc_unit #(
     assign pc_plus4_o = pc_q + 32'd4;
 
     // Next PC selection logic with priority:
-    // Redirection has priority over stall to clear wrong-path instructions.
+    // When pipeline is stalled (e.g. LSU busy waiting for memory), PC must hold.
+    // Redirection executes as soon as the stall clears.
     always_comb begin
-        if (redirect_i) begin
-            next_pc = redirect_pc_i;
-        end else if (stall_i) begin
+        if (stall_i) begin
             next_pc = pc_q;
+        end else if (redirect_i) begin
+            next_pc = redirect_pc_i;
         end else begin
             next_pc = pc_plus4_o;
         end

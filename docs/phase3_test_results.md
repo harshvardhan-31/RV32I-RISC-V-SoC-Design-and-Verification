@@ -3,17 +3,17 @@
 # Project: RV32I RISC-V SoC — Phase 3: Hazard Detection and Forwarding
 # ============================================================================
 
-# Phase 3 Test Results
+# Phase 3 Test Results (Audit Status)
 
 > [!IMPORTANT]
-> All simulation results are marked **Not run**. Icarus Verilog and Verilator
-> are not installed in the CI/sandbox environment used to generate this package.
-> Run `bash scripts/run_phase3_sim.sh` with Icarus Verilog ≥ 11.0 installed
-> to execute all tests.
+> All simulation tests remain marked **Not run** because Icarus Verilog (`iverilog`)
+> and Verilator are not installed in the local CI/sandbox environment.
+> In accordance with project engineering rules, results are never fabricated.
+> Run `bash scripts/run_phase3_sim.sh` locally once Icarus Verilog is installed.
 
 ---
 
-## 1. Unit Test Results — Hazard Detection Unit
+## 1. Unit Test Results — Hazard Detection Unit (`tb_hazard_unit.sv`)
 
 | ID | Test Name | Status |
 |----|-----------|--------|
@@ -32,7 +32,7 @@
 
 ---
 
-## 2. Unit Test Results — Forwarding Unit
+## 2. Unit Test Results — Forwarding Unit (`tb_forwarding_unit.sv`)
 
 | ID | Test Name | Status |
 |----|-----------|--------|
@@ -48,70 +48,67 @@
 | FORWARD-10 | rd=x0 in MEM/WB | Not run |
 | FORWARD-11 | No match | Not run |
 | FORWARD-12 | EX/MEM load; MEM/WB fallback | Not run |
+| FORWARD-13 | EX/MEM invalid entry (valid=0) | Not run |
+| FORWARD-14 | MEM/WB invalid entry (valid=0) | Not run |
+| FORWARD-15 | EX/MEM invalid entry for rs2 | Not run |
+| FORWARD-16 | MEM/WB invalid entry for rs2 | Not run |
+| FORWARD-17 | MEM/WB reg_write=0 for rs1 | Not run |
+| FORWARD-18 | MEM/WB reg_write=0 for rs2 | Not run |
+| FORWARD-19 | MEM/WB rd=x0 for rs1 | Not run |
+| FORWARD-20 | Dual-stage simultaneous priority | Not run |
 
 ---
 
-## 3. Integration Test Results — tb_hazard_integration
+## 3. Integration Test Results — `tb_hazard_integration.sv`
 
 | ID | Sequence | Status |
 |----|----------|--------|
 | SEQ-A | RAW ALU chain (EX/MEM + MEM/WB fwd) | Not run |
-| SEQ-B | Load-use hazard with stall bubble | Not run |
+| SEQ-B | Isolated Load-use dependency (1 cycle & 1 bubble assert) | Not run |
 | SEQ-C | Store data forwarding | Not run |
 | SEQ-D | Triple-dependency chain | Not run |
+| SEQ-E | Multi-cycle memory wait states (WAIT_CYCLES=2) | Not run |
+| SEQ-F | Branch redirect during outstanding memory transaction | Not run |
 
 ---
 
-## 4. Integration Test Results — tb_cpu_forwarding
+## 4. Integration Test Results — `tb_cpu_forwarding.sv`
 
 | ID | Sequence | Status |
 |----|----------|--------|
 | FWD-SEQ-A | Consecutive ALU forwarding | Not run |
 | FWD-SEQ-B | MEM/WB→EX forwarding | Not run |
 | FWD-SEQ-C | Branch operand forwarding | Not run |
-| FWD-SEQ-D | JALR base forwarding | Not run |
+| FWD-SEQ-D | Genuine immediate JALR dependency | Not run |
 | FWD-SEQ-E | Store data forwarding | Not run |
 | FWD-SEQ-F | Load-use + MEM/WB forward | Not run |
+| FWD-SEQ-G | Register x0 protection | Not run |
+| FWD-SEQ-H | Back-to-back producer priority | Not run |
 
 ---
 
-## 5. Lint Results
+## 5. Decoder & Control Unit Results
 
-| Module | Verilator Status |
-|--------|-----------------|
-| hazard_unit.sv | Not run |
-| forwarding_unit.sv | Not run |
-| cpu_core.sv (all modules) | Not run |
+| ID | Scenario | Status |
+|----|----------|--------|
+| DEC-SYS-01 | ECALL instruction decoding | Not run |
+| DEC-SYS-02 | EBREAK instruction decoding | Not run |
+| DEC-SYS-03 | Invalid SYSTEM opcode decoding | Not run |
+| DEC-SYS-04 | ECALL with non-zero rd | Not run |
+| CTRL-SYS-01 | ECALL control signals (sys_ecall=1) | Not run |
+| CTRL-SYS-02 | EBREAK control signals (sys_ebreak=1) | Not run |
 
 ---
 
-## 6. How to Run
+## 6. How to Run Locally
 
 ```bash
-# Prerequisites: Icarus Verilog >= 11.0
-mkdir -p sim_out reports/simulation/phase3
-
-# Run all Phase 3 testbenches
+# Run all Phase 3 simulations
 bash scripts/run_phase3_sim.sh
 
-# Unit tests only
-bash scripts/run_phase3_sim.sh --unit-only
+# Or with Make
+make test_phase3
 
-# Integration tests only
-bash scripts/run_phase3_sim.sh --sys-only
-
-# Lint check
+# Run lint checks
 bash scripts/lint_phase3.sh
 ```
-
----
-
-## 7. Known Limitations
-
-- No instruction-set simulator (ISS) comparison. Register values are verified
-  against hand-computed golden values only.
-- Assembly programs in `programs/asm/` are reference documentation.
-  Hex files must be generated with `riscv32-unknown-elf-objcopy`.
-- No formal verification coverage in Phase 3.
-- Privileged ISA, CSR, and trap handling are not implemented.
-- Misaligned memory access behavior is undefined.

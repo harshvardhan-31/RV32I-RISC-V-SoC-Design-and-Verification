@@ -1,40 +1,43 @@
 // ============================================================================
 // File: tb_control_unit.sv
-// Project: RV32I RISC-V SoC (Phase 2 - Unit Verification)
+// Project: RV32I RISC-V SoC (Phase 2/Phase 3 - Unit Verification)
 // Description: Self-checking testbench for control_unit.sv.
 //              Verifies control signals for all RV32I instruction classes
 //              (R-type, I-type arithmetic/load/jalr, S-type, B-type, U-type,
-//              J-type, FENCE, ECALL/EBREAK) and verifies that illegal instructions
+//              J-type, FENCE, ECALL, EBREAK) and verifies that illegal instructions
 //              produce zero side effects (no reg/mem writes or branches).
+//              Explicitly tests ECALL vs EBREAK discrimination using funct12.
 // ============================================================================
 
 `timescale 1ns / 1ps
 
 module tb_control_unit;
 
-    logic [6:0] opcode;
-    logic [2:0] funct3;
-    logic [6:0] funct7;
-    logic       illegal_instr;
-    logic [2:0] imm_type;
-    logic [3:0] alu_op;
-    logic       alu_src_a;
-    logic       alu_src_b;
-    logic       mem_read;
-    logic       mem_write;
-    logic       reg_write;
-    logic [1:0] wb_sel;
-    logic       branch;
-    logic       jump;
-    logic       jalr;
-    logic       sys_ecall;
-    logic       sys_ebreak;
-    logic       sys_fence;
+    logic [6:0]  opcode;
+    logic [2:0]  funct3;
+    logic [6:0]  funct7;
+    logic [11:0] funct12;
+    logic        illegal_instr;
+    logic [2:0]  imm_type;
+    logic [3:0]  alu_op;
+    logic        alu_src_a;
+    logic        alu_src_b;
+    logic        mem_read;
+    logic        mem_write;
+    logic        reg_write;
+    logic [1:0]  wb_sel;
+    logic        branch;
+    logic        jump;
+    logic        jalr;
+    logic        sys_ecall;
+    logic        sys_ebreak;
+    logic        sys_fence;
 
     control_unit dut (
         .opcode_i       (opcode),
         .funct3_i       (funct3),
         .funct7_i       (funct7),
+        .funct12_i      (funct12),
         .illegal_instr_i(illegal_instr),
         .imm_type_o     (imm_type),
         .alu_op_o       (alu_op),
@@ -84,6 +87,7 @@ module tb_control_unit;
     initial begin
         $display("=== Starting tb_control_unit Verification ===");
         illegal_instr = 0;
+        funct12 = 12'h000;
 
         // 1. R-type ADD: opcode 0110011, funct3 000, funct7 0000000
         opcode = 7'b0110011; funct3 = 3'b000; funct7 = 7'b0000000;
@@ -127,8 +131,25 @@ module tb_control_unit;
 
         // 11. Illegal instruction assertion test: all side effects suppressed
         illegal_instr = 1;
-        opcode = 7'b0110011; funct3 = 3'b000; funct7 = 7'b0000000; // Even with ADD encoding, illegal suppresses
+        opcode = 7'b0110011; funct3 = 3'b000; funct7 = 7'b0000000;
         check_ctrl(3'b000, 4'b0000, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 2'b00, 1'b0, 1'b0, "Illegal instruction side effects suppressed");
+
+        // 12. SYSTEM ECALL: opcode 1110011, funct3 000, funct12 0x000
+        illegal_instr = 0;
+        opcode = 7'b1110011; funct3 = 3'b000; funct7 = 7'b0000000; funct12 = 12'h000;
+        check_ctrl(3'b000, 4'b0000, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 2'b00, 1'b0, 1'b0, "SYSTEM ECALL");
+        if (sys_ecall !== 1'b1 || sys_ebreak !== 1'b0) begin
+            $fatal(1, "ECALL detection failed: sys_ecall=%b sys_ebreak=%b", sys_ecall, sys_ebreak);
+        end
+        $display("PASS: SYSTEM ECALL distinction (sys_ecall=1, sys_ebreak=0)");
+
+        // 13. SYSTEM EBREAK: opcode 1110011, funct3 000, funct12 0x001
+        opcode = 7'b1110011; funct3 = 3'b000; funct7 = 7'b0000000; funct12 = 12'h001;
+        check_ctrl(3'b000, 4'b0000, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 2'b00, 1'b0, 1'b0, "SYSTEM EBREAK");
+        if (sys_ebreak !== 1'b1 || sys_ecall !== 1'b0) begin
+            $fatal(1, "EBREAK detection failed: sys_ecall=%b sys_ebreak=%b", sys_ecall, sys_ebreak);
+        end
+        $display("PASS: SYSTEM EBREAK distinction (sys_ecall=0, sys_ebreak=1)");
 
         $display("=== tb_control_unit PASSED: All %0d checks passed ===", test_count);
         $finish;

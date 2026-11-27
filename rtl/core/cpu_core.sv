@@ -146,16 +146,17 @@ module cpu_core #(
     // ========================================================================
     // Stage 2: Instruction Decode (ID)
     // ========================================================================
-    logic [6:0] id_opcode;
-    logic [4:0] id_rd;
-    logic [2:0] id_funct3;
-    logic [4:0] id_rs1;
-    logic [4:0] id_rs2;
-    logic [6:0] id_funct7;
-    logic       id_rs1_used;
-    logic       id_rs2_used;
-    logic       id_rd_used;
-    logic       id_illegal_instr;
+    logic [6:0]  id_opcode;
+    logic [4:0]  id_rd;
+    logic [2:0]  id_funct3;
+    logic [4:0]  id_rs1;
+    logic [4:0]  id_rs2;
+    logic [6:0]  id_funct7;
+    logic [11:0] id_funct12;
+    logic        id_rs1_used;
+    logic        id_rs2_used;
+    logic        id_rd_used;
+    logic        id_illegal_instr;
 
     instruction_decoder u_decoder (
         .instr_i        (id_instr),
@@ -165,6 +166,7 @@ module cpu_core #(
         .rs1_o          (id_rs1),
         .rs2_o          (id_rs2),
         .funct7_o       (id_funct7),
+        .funct12_o      (id_funct12),
         .rs1_used_o     (id_rs1_used),
         .rs2_used_o     (id_rs2_used),
         .rd_used_o      (id_rd_used),
@@ -190,6 +192,7 @@ module cpu_core #(
         .opcode_i       (id_opcode),
         .funct3_i       (id_funct3),
         .funct7_i       (id_funct7),
+        .funct12_i      (id_funct12),
         .illegal_instr_i(id_illegal_instr),
         .imm_type_o     (id_imm_type),
         .alu_op_o       (id_alu_op),
